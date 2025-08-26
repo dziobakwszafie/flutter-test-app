@@ -1,13 +1,138 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:math';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // Controllers for input fields
+  final TextEditingController _plateWidthController = TextEditingController(
+    text: '534',
+  );
+  final TextEditingController _frontWidthController = TextEditingController(
+    text: '2039',
+  );
+  final TextEditingController _backWidthController = TextEditingController(
+    text: '2010',
+  );
+
+  final TextEditingController _desiredAngleDegreesController =
+      TextEditingController(text: '1');
+  final TextEditingController _desiredAngleMinutesController =
+      TextEditingController(text: '33');
+
+  // Calculated values
+  double _currentAngleDegrees = 0;
+  int _currentAngleMinutes = 0;
+
+  double _differencePerSide = 0;
+  double _frontTargetDistance = 0;
+  double _backTargetDistance = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Add listeners to trigger calculations when values change
+    _plateWidthController.addListener(_onInputChanged);
+    _frontWidthController.addListener(_onInputChanged);
+    _backWidthController.addListener(_onInputChanged);
+    _desiredAngleDegreesController.addListener(_onInputChanged);
+    _desiredAngleMinutesController.addListener(_onInputChanged);
+
+    _calculateCurrentAngle();
+    _calculateTargetDistances();
+  }
+
+  void _onInputChanged() {
+    _calculateCurrentAngle();
+    _calculateTargetDistances();
+  }
+
+  /// Calculates the current angle from measured distances using arctangent.
+  ///
+  /// Mathematical formula used:
+  /// - Current angle: α = arctan((d_larger - d_smaller) / plate_width)
+  void _calculateCurrentAngle() {
+    setState(() {
+      // Step 1: Calculate current angle from measured values
+      // Formula: angle = arctan((larger_distance - smaller_distance) / plate_width)
+      double plateWidth = double.tryParse(_plateWidthController.text) ?? 1;
+      double frontWidth = double.tryParse(_frontWidthController.text) ?? 1;
+      double backWidth = double.tryParse(_backWidthController.text) ?? 1;
+      double distanceDifference = (frontWidth - backWidth) / 2;
+      double angleRadians = atan(distanceDifference / plateWidth);
+      double angleDegrees = angleRadians * (180 / pi);
+      _currentAngleDegrees = angleDegrees.truncate().toDouble();
+      _currentAngleMinutes = ((angleDegrees % 1) * 60).toInt();
+    });
+  }
+
+  /// Calculates target distances based on desired angle.
+  ///
+  /// This method performs the following calculations:
+  /// 1. Tangent of the desired angle
+  /// 2. Distance difference per side for the target angle
+  /// 3. Target distances for both sides
+  ///
+  /// Mathematical formulas used:
+  /// - Target distances: d_target = plate_width * tan(desired_angle)
+  /// - Difference per side: Δd = (d_larger_target - d_smaller_target) / 2
+  void _calculateTargetDistances() {
+    setState(() {
+      double plateWidth = double.tryParse(_plateWidthController.text) ?? 1;
+      double frontWidth = double.tryParse(_frontWidthController.text) ?? 1;
+      double backWidth = double.tryParse(_backWidthController.text) ?? 1;
+      double axleWidth = (frontWidth + backWidth) / 2;
+
+      // Step 2: Calculate tangent of desired angle
+      // Formula: tan(angle) where angle = degrees + minutes/60
+      double desiredAngleDegrees =
+          double.tryParse(_desiredAngleDegreesController.text) ?? 1;
+      double desiredAngleMinutes =
+          double.tryParse(_desiredAngleMinutesController.text) ?? 1;
+      double totalDesiredAngle =
+          desiredAngleDegrees + (desiredAngleMinutes / 60.0);
+
+      double tangent = tan(totalDesiredAngle * (pi / 180));
+
+      // Step 3: Calculate distance difference per side
+      // Formula: difference = plate_width * tan(desired_angle) / 2
+      _differencePerSide = (plateWidth * tangent);
+
+      // Step 4: Calculate target distances
+      // Formula: target_distance = current_distance ± difference_per_side
+      _frontTargetDistance = axleWidth + _differencePerSide;
+      _backTargetDistance = axleWidth - _differencePerSide;
+    });
+  }
+
+  @override
+  void dispose() {
+    _plateWidthController.removeListener(_onInputChanged);
+    _frontWidthController.removeListener(_onInputChanged);
+    _backWidthController.removeListener(_onInputChanged);
+    _desiredAngleDegreesController.removeListener(_onInputChanged);
+    _desiredAngleMinutesController.removeListener(_onInputChanged);
+
+    _plateWidthController.dispose();
+    _frontWidthController.dispose();
+    _backWidthController.dispose();
+    _desiredAngleDegreesController.dispose();
+    _desiredAngleMinutesController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Welcome Home'),
+        title: const Text('Car alignment calculator'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         elevation: 2,
       ),
@@ -16,154 +141,60 @@ class HomePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero Section
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24.0),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.blue.shade100,
-                    Colors.blue.shade50,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16.0),
+            // Measured Values Section
+            _buildSection('Initial Values', [
+              _buildInputRow('Plate Length', _plateWidthController, 'mm'),
+              _buildInputRow('Front Distance', _frontWidthController, 'mm'),
+              _buildInputRow('Back Distance', _backWidthController, 'mm'),
+              _buildDisplayRow(
+                'Current Angle',
+                '${_currentAngleDegrees.toStringAsFixed(0)} deg $_currentAngleMinutes min',
               ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.home,
-                    size: 64,
-                    color: Colors.blue.shade700,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Welcome to My App',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your one-stop destination for everything you need',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.blue.shade700,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-            
+              const SizedBox(height: 24),
+
+              if (double.tryParse(_frontWidthController.text)! >
+                  double.tryParse(_backWidthController.text)!)
+                Image.asset('assets/images/toe-out.jpg')
+              else if (double.tryParse(_frontWidthController.text)! <
+                  double.tryParse(_backWidthController.text)!)
+                Image.asset('assets/images/toe-in.jpg')
+              else
+                Image.asset('assets/images/zero-toe.jpg'),
+            ]),
+
             const SizedBox(height: 24),
-            
-            // Features Section
-            Text(
-              'Features',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+
+            // Distance Calculation Section
+            _buildSection('Target Values', [
+              _buildDoubleInputRow(
+                'Desired Angle',
+                _desiredAngleDegreesController,
+                'deg',
+                _desiredAngleMinutesController,
+                'min',
               ),
-            ),
-            const SizedBox(height: 16),
-            
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              children: [
-                _buildFeatureCard(
-                  context,
-                  Icons.star,
-                  'Premium',
-                  'High-quality features',
-                  Colors.amber,
-                ),
-                _buildFeatureCard(
-                  context,
-                  Icons.security,
-                  'Secure',
-                  'Your data is safe',
-                  Colors.green,
-                ),
-                _buildFeatureCard(
-                  context,
-                  Icons.speed,
-                  'Fast',
-                  'Lightning quick',
-                  Colors.red,
-                ),
-                _buildFeatureCard(
-                  context,
-                  Icons.support_agent,
-                  'Support',
-                  '24/7 assistance',
-                  Colors.purple,
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Call to Action
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20.0),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade600,
-                borderRadius: BorderRadius.circular(12.0),
+              _buildDisplayRow(
+                'Difference per Side',
+                '${_differencePerSide.toStringAsFixed(1)} mm',
               ),
-              child: Column(
-                children: [
-                  Text(
-                    'Ready to get started?',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate to contact page
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Contact us to get started!'),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.blue.shade600,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text('Get Started'),
-                  ),
-                ],
+              _buildDisplayRow(
+                'Front Distance',
+                '${_frontTargetDistance.toStringAsFixed(1)} mm',
               ),
-            ),
+              _buildDisplayRow(
+                'Back Distance',
+                '${_backTargetDistance.toStringAsFixed(1)} mm',
+              ),
+            ]),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFeatureCard(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String description,
-    Color color,
-  ) {
+  Widget _buildSection(String title, List<Widget> children) {
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12.0),
@@ -177,28 +208,203 @@ class HomePage extends StatelessWidget {
         ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 40,
-            color: color,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
+          // Blue header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade600,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12.0),
+                topRight: Radius.circular(12.0),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.grey.shade600,
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            textAlign: TextAlign.center,
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputRow(
+    String label,
+    TextEditingController controller,
+    String unit,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.yellow.shade100,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.yellow.shade300),
+              ),
+              child: TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  border: InputBorder.none,
+                  suffixText: unit,
+                  suffixStyle: TextStyle(color: Colors.grey.shade600),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                ),
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDoubleInputRow(
+    String label,
+    TextEditingController controller,
+    String unit,
+    TextEditingController controller2,
+    String unit2,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.yellow.shade100,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.yellow.shade300),
+              ),
+              child: TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  border: InputBorder.none,
+                  suffixText: unit,
+                  suffixStyle: TextStyle(color: Colors.grey.shade600),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                ),
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.yellow.shade100,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.yellow.shade300),
+              ),
+              child: TextField(
+                controller: controller2,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  border: InputBorder.none,
+                  suffixText: unit2,
+                  suffixStyle: TextStyle(color: Colors.grey.shade600),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                ),
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDisplayRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade800),
+              ),
+            ),
           ),
         ],
       ),
